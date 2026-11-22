@@ -1,0 +1,157 @@
+package Simulator;
+
+import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
+
+public class BreadBoard extends CircuitComponant {
+    private final int cols = 30;
+    private final List<List<Pin>> connectedGroups = new ArrayList<>();
+    private Pin highlightedPin = null;
+
+    public BreadBoard(int x, int y) {
+        super("Breadboard", x, y, 560, 240);
+        buildPinsAndGroups();
+    }
+
+    public void setHighlightedPin(Pin p) {
+        this.highlightedPin = p;
+    }
+
+    public Pin findSnapPin(int px, int py, int snapRadius) {
+        Pin best = null;
+        double bestDist = snapRadius;
+        for (Pin p : pins) {
+            double d = Math.hypot(px - p.getX(), py - p.getY());
+            if (d <= bestDist) {
+                bestDist = d;
+                best = p;
+            }
+        }
+        return best;
+    }
+
+    private void buildPinsAndGroups() {
+        List<Pin> topMinus = new ArrayList<>();
+        List<Pin> topPlus = new ArrayList<>();
+        List<Pin> botMinus = new ArrayList<>();
+        List<Pin> botPlus = new ArrayList<>();
+
+        char[] topRows = {'A', 'B', 'C', 'D', 'E'};
+        char[] botRows = {'F', 'G', 'H', 'I', 'J'};
+
+        for (int c = 0; c < cols; c++) {
+            int px = 38 + c * 17;
+
+            Pin tm = new Pin("TOP-" + (c + 1), this, px, 20);
+            Pin tp = new Pin("TOP+" + (c + 1), this, px, 32);
+            pins.add(tm);
+            pins.add(tp);
+            topMinus.add(tm);
+            topPlus.add(tp);
+
+            List<Pin> upperCol = new ArrayList<>();
+            for (int r = 0; r < topRows.length; r++) {
+                Pin p = new Pin(topRows[r] + String.valueOf(c + 1), this, px, 62 + r * 12);
+                pins.add(p);
+                upperCol.add(p);
+            }
+            connectedGroups.add(upperCol);
+
+            List<Pin> lowerCol = new ArrayList<>();
+            for (int r = 0; r < botRows.length; r++) {
+                Pin p = new Pin(botRows[r] + String.valueOf(c + 1), this, px, 136 + r * 12);
+                pins.add(p);
+                lowerCol.add(p);
+            }
+            connectedGroups.add(lowerCol);
+
+            Pin bm = new Pin("BOT-" + (c + 1), this, px, 206);
+            Pin bp = new Pin("BOT+" + (c + 1), this, px, 218);
+            pins.add(bm);
+            pins.add(bp);
+            botMinus.add(bm);
+            botPlus.add(bp);
+        }
+
+        connectedGroups.add(topMinus);
+        connectedGroups.add(topPlus);
+        connectedGroups.add(botMinus);
+        connectedGroups.add(botPlus);
+    }
+
+    public void propagateInternal() {
+        for (List<Pin> group : connectedGroups) {
+            Pin source = null;
+            for (Pin p : group) {
+                if (p.driven) {
+                    source = p;
+                    break;
+                }
+            }
+            if (source != null) {
+                for (Pin p : group) {
+                    if (!p.driven) {
+                        p.voltage = source.voltage;
+                        p.current = source.current;
+                        p.driven = true;
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
+    public void evaluate(boolean simRunning, DcPowerSupply psu) {
+        propagateInternal();
+    }
+
+    @Override
+    public void draw(Graphics2D g, boolean selected) {
+        g.setColor(new Color(224, 226, 230));
+        g.fillRoundRect(x, y, width, height, 10, 10);
+        g.setColor(selected ? new Color(0, 120, 215) : new Color(170, 175, 182));
+        g.setStroke(new BasicStroke(selected ? 2.5f : 1.5f));
+        g.drawRoundRect(x, y, width, height, 10, 10);
+
+        
+        g.setColor(new Color(195, 198, 204));
+        g.fillRect(x + 24, y + 124, width - 48, 8);
+
+
+        g.setFont(new Font("SansSerif", Font.BOLD, 10));
+        g.setColor(new Color(40, 90, 200));
+        g.drawString("-", x + 12, y + 23);
+        g.drawString("-", x + 12, y + 209);
+        g.setColor(new Color(210, 45, 45));
+        g.drawString("+", x + 11, y + 35);
+        g.drawString("+", x + 11, y + 221);
+
+        
+        char[] topRows = {'A', 'B', 'C', 'D', 'E'};
+        char[] botRows = {'F', 'G', 'H', 'I', 'J'};
+        g.setColor(Color.DARK_GRAY);
+        g.setFont(new Font("SansSerif", Font.PLAIN, 9));
+        for (int r = 0; r < 5; r++) {
+            g.drawString(String.valueOf(topRows[r]), x + 11, y + 65 + r * 12);
+            g.drawString(String.valueOf(botRows[r]), x + 11, y + 139 + r * 12);
+        }
+
+        
+        for (Pin p : pins) {
+            if (p == highlightedPin) {
+                g.setColor(new Color(255, 150, 0));
+                g.fillOval(p.getX() - 5, p.getY() - 5, 10, 10);
+            }
+            SignalLevel lvl = p.getLevel();
+            if (lvl == SignalLevel.HIGH) {
+                g.setColor(new Color(220, 40, 40));
+            } else if (lvl == SignalLevel.LOW) {
+                g.setColor(new Color(35, 80, 200));
+            } else {
+                g.setColor(new Color(85, 88, 94));
+            }
+            g.fillOval(p.getX() - 2, p.getY() - 2, 5, 5);
+        }
+    }
+}
